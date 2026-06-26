@@ -1,257 +1,182 @@
-# Sample Game 01 Backend
+# Sample Game Backend - Terraform Infrastructure
 
-A production-ready Spring Boot application with MySQL database, containerized with Docker, and deployed using AWS ECS with comprehensive CI/CD pipeline.
+This directory contains Terraform configuration for deploying the Sample Game Backend application to AWS.
 
-## 🚀 Features
+## Architecture
 
-- **Spring Boot 2.6.7** with Java 17
-- **MySQL 8.0** database with JPA/Hibernate
-- **JWT Authentication** with Spring Security
-- **Docker** containerization
-- **AWS ECS Fargate** deployment
-- **Terraform** infrastructure as code
-- **GitHub Actions** CI/CD pipeline
-- **Comprehensive testing** and quality gates
-- **Security scanning** and vulnerability detection
-- **Multi-environment** support (dev, staging, prod)
+The infrastructure includes:
 
-## 🏗️ Architecture
+- **VPC** with public and private subnets across 2 availability zones
+- **RDS MySQL** database in private subnets
+- **ECS Fargate** cluster for running the Spring Boot application
+- **Application Load Balancer** for traffic distribution
+- **ECR** repository for Docker images
+- **CloudWatch** for logging and monitoring
+- **Auto Scaling** based on CPU utilization
+- **Security Groups** for network access control
+
+## Prerequisites
+
+1. **AWS CLI** configured with appropriate credentials
+2. **Terraform** >= 1.5.0 installed
+3. **Docker** for building and pushing images
+4. **AWS Account** with sufficient permissions
+
+## Quick Start
+
+1. **Configure variables:**
+   ```bash
+   cp terraform.tfvars.example terraform.tfvars
+   # Edit terraform.tfvars with your values
+   ```
+
+2. **Deploy infrastructure:**
+   ```bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
+
+3. **Build and push Docker image:**
+   ```bash
+   # Get ECR login token
+   aws ecr get-login-password --region $(terraform output -raw aws_region) | \
+   docker login --username AWS --password-stdin $(terraform output -raw ecr_repository_url)
+   
+   # Build and push image
+   docker build -t $(terraform output -raw ecr_repository_url) .
+   docker push $(terraform output -raw ecr_repository_url)
+   ```
+
+4. **Access your application:**
+   ```bash
+   echo "Application URL: $(terraform output -raw application_url)"
+   ```
+
+## Configuration
+
+### Required Variables
+
+- `db_password`: Database password (sensitive)
+
+### Optional Variables
+
+- `aws_region`: AWS region (default: us-east-1)
+- `app_name`: Application name (default: sample-game-app)
+- `environment`: Environment name (default: dev)
+- `db_instance_class`: RDS instance class (default: db.t3.micro)
+- `app_count`: Number of application instances (default: 2)
+- `cpu`: CPU units for ECS task (default: 512)
+- `memory`: Memory for ECS task in MB (default: 1024)
+
+## File Structure
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   GitHub        │    │   AWS ECS       │    │   AWS RDS       │
-│   Actions       │───▶│   Fargate       │───▶│   MySQL         │
-│   CI/CD         │    │   Containers    │    │   Database      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Code Quality  │    │   Application   │    │   CloudWatch    │
-│   & Security    │    │   Load Balancer │    │   Monitoring    │
-│   Scanning      │    │   (ALB)         │    │   & Logs       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+terraform/
+├── main.tf              # Main infrastructure resources
+├── variables.tf         # Variable definitions
+├── outputs.tf          # Output values
+├── providers.tf        # Provider configuration
+├── data.tf             # Data sources
+├── locals.tf           # Local values
+├── versions.tf         # Terraform and provider versions
+├── terraform.tfvars.example  # Example variables file
+├── deploy.sh           # Deployment script
+├── destroy.sh          # Destruction script
+└── README.md           # This file
 ```
 
-## 🚀 Quick Start
+## Manual Deployment
 
-### Prerequisites
-
-- **Docker** and **Docker Compose** installed
-- **Java 17** and **Maven** (for local development)
-- **AWS CLI** and **Terraform** (for cloud deployment)
-
-### Option 1: Local Development with Docker
+If you prefer to run Terraform commands manually:
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/sample-game-backend.git
-cd sample-game-backend
-
-# Build and start all services
-docker-compose up --build
-
-# Or run in detached mode
-docker-compose up --build -d
-```
-
-### Option 2: Local Development (Java + Maven)
-
-```bash
-# On Linux/Mac
-./build.sh
-
-# On Windows
-build.bat
-```
-
-### Option 3: Cloud Deployment
-
-```bash
-# Deploy infrastructure
-cd terraform
+# Initialize
 terraform init
+
+# Validate
+terraform validate
+
+# Plan
+terraform plan
+
+# Apply
 terraform apply
 
-# Deploy application
-./scripts/deploy-dev.sh  # For development
-./scripts/deploy-prod.sh # For production
+# Destroy (when needed)
+terraform destroy
 ```
 
-## 🔧 CI/CD Pipeline
+## Monitoring
 
-This project includes a simplified CI/CD pipeline with:
+- **CloudWatch Logs**: Application logs are sent to `/ecs/{app_name}-{environment}`
+- **CloudWatch Alarms**: CPU and memory utilization alarms
+- **ECS Service**: Monitor service health in AWS Console
 
-### **Automated Testing**
-- Unit tests with JUnit 5
-- Integration tests with MySQL
-- Basic build verification
+## Security
 
-### **Multi-Environment Deployment**
-- **Development**: Automatic deployment on `develop` branch
-- **Production**: Automatic deployment on `main` branch
-- **Infrastructure as Code**: Terraform-managed AWS resources
+- Database is in private subnets
+- Application runs in private subnets
+- Security groups restrict access
+- RDS encryption enabled
+- ECR image scanning enabled
 
-## 📊 Services & Endpoints
+## Cost Optimization
 
-### **Application Services**
-- **App**: Spring Boot application (port 8080)
-- **MySQL**: Database (port 3306)
-- **Load Balancer**: AWS Application Load Balancer
+- Uses Fargate Spot instances (if available)
+- Auto-scaling based on CPU utilization
+- RDS instance can be resized based on needs
+- CloudWatch logs retention set to 30 days
 
-### **API Endpoints**
-- `GET /api/v1/application/version` - Application version
-- `POST /api/v1/player/signup` - Player registration
-- `PATCH /api/v1/player/account/verify` - Email verification
-- `POST /api/v1/player/game/start` - Start new game
-- `POST /api/v1/player/game/answer` - Submit answer
-- `GET /api/v1/player/game/leaderboard` - Top scores
+## Troubleshooting
 
-### **Environment Variables**
+### Common Issues
 
-#### Local Development
+1. **ECS tasks not starting:**
+   - Check CloudWatch logs
+   - Verify ECR image exists and is accessible
+   - Check security group rules
+
+2. **Database connection issues:**
+   - Verify RDS security group allows access from ECS
+   - Check database credentials
+   - Ensure RDS is in the same VPC
+
+3. **Load balancer health checks failing:**
+   - Verify application is responding on `/api/v1/application/version`
+   - Check security group rules
+   - Ensure application is binding to correct port
+
+### Useful Commands
+
 ```bash
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_DB=game_db
-MYSQL_USER=root
-MYSQL_PASS=12345
+# Check ECS service status
+aws ecs describe-services --cluster $(terraform output -raw ecs_cluster_id) --services $(terraform output -raw ecs_service_name)
+
+# View application logs
+aws logs tail /ecs/$(terraform output -raw ecs_cluster_id) --follow
+
+# Check RDS status
+aws rds describe-db-instances --db-instance-identifier $(terraform output -raw rds_identifier)
 ```
 
-#### Cloud Deployment
+## Cleanup
+
+To destroy all resources:
+
 ```bash
-MYSQL_HOST=${RDS_ENDPOINT}
-MYSQL_PORT=3306
-MYSQL_DB=game_db
-MYSQL_USER=${DB_USERNAME}
-MYSQL_PASS=${DB_PASSWORD}
-SPRING_PROFILES_ACTIVE=prod
+chmod +x destroy.sh
+./destroy.sh
 ```
 
-## 🛠️ Development
-
-### **Project Structure**
-```
-backend/
-├── src/main/java/           # Java source code
-├── src/main/resources/      # Configuration files
-├── src/test/java/           # Test code
-├── .github/workflows/       # GitHub Actions
-├── terraform/               # Infrastructure as code
-├── scripts/                 # Deployment scripts
-├── docs/                    # Documentation
-└── docker-compose.yml       # Local development
-```
-
-### **Running Tests**
+Or manually:
 ```bash
-# Run all tests
-./mvnw test
-
-# Run with coverage
-./mvnw test jacoco:report
-
-# Run specific test
-./mvnw test -Dtest=GameServiceTest
+terraform destroy
 ```
 
-### **Basic Build and Test**
-```bash
-# Run tests
-./mvnw test
+## Support
 
-# Build application
-./mvnw clean package
-
-# Run with specific profile
-./mvnw clean package -Pprod
-```
-
-## 🚀 Deployment
-
-### **Development Environment**
-```bash
-# Automatic deployment on push to develop branch
-git push origin develop
-```
-
-### **Production Environment**
-```bash
-# Automatic deployment on push to main branch
-git push origin main
-```
-
-### **Manual Deployment**
-```bash
-# Deploy to development
-./scripts/deploy-dev.sh
-
-# Deploy to production
-./scripts/deploy-prod.sh
-```
-
-## 📈 Monitoring & Observability
-
-### **Application Monitoring**
-- **Health Checks**: `/api/v1/application/version`
-- **Metrics**: CPU, memory, request count, error rate
-- **Logs**: Centralized logging with CloudWatch
-
-### **Infrastructure Monitoring**
-- **ECS Service Health**: Service status, task count
-- **RDS Monitoring**: Database performance, connections
-- **ALB Health**: Load balancer health, target health
-
-### **Alerts**
-- High CPU/Memory usage
-- Error rate thresholds
-- Database connection issues
-- Deployment failures
-
-## 🔒 Security
-
-### **Security Features**
-- JWT-based authentication
-- Rate limiting and throttling
-- Input validation and sanitization
-- SQL injection prevention
-- XSS protection
-- CORS configuration
-- Security headers
-
-## 📚 Documentation
-
-- [CI/CD Setup Guide](docs/CI-CD-SETUP.md) - Comprehensive CI/CD setup instructions
-- [API Documentation](docs/API.md) - API endpoint documentation
-- [Deployment Guide](docs/DEPLOYMENT.md) - Deployment instructions
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
-
-## 🆘 Support
-
-### **Getting Help**
-1. Check the [troubleshooting guide](docs/TROUBLESHOOTING.md)
-2. Review GitHub Actions logs
-3. Check AWS CloudWatch logs
-4. Create an issue in the repository
-
-### **Common Issues**
-- **Build failures**: Check Maven dependencies and Docker daemon
-- **Deployment issues**: Verify AWS credentials and Terraform state
-- **Database issues**: Check RDS instance and security groups
-- **Application issues**: Review CloudWatch logs
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and quality checks
-5. Create a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Built with ❤️ using Spring Boot, Docker, AWS, and GitHub Actions**
+For issues or questions, please check:
+1. AWS CloudWatch logs
+2. ECS service events
+3. Terraform state file
+4. Application logs
